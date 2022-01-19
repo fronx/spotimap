@@ -25,6 +25,21 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))
 
 
 tracks = {}
+def add_track(t, a=None):
+	if a == None:
+		a = t
+	if t['preview_url'] != None:
+		tracks[t['uri']] = {
+			'name': t['name'],
+			'album': a['album']['name'],
+			'artist': a['album']['artists'][0]['name'],
+			# 'genre': genre,
+			'uri': t['uri'],
+			'preview_url': t['preview_url'],
+			'href': t['external_urls']['spotify'],
+			'release_year': int(a['album']['release_date'][0:4])
+		}
+
 albums = sp.current_user_saved_albums()
 while albums:
 	for i, a in enumerate(albums['items']):
@@ -32,22 +47,37 @@ while albums:
 		# genre = next(iter(a['album']['artists'][0]['genres']), '') if 'genres' in a['album']['artists'][0] else ''
 		# print(genre)
 		for t in a['album']['tracks']['items']:
-			if t['preview_url'] != None:
-				tracks[t['uri']] = {
-					'name': t['name'],
-					'album': a['album']['name'],
-					'artist': a['album']['artists'][0]['name'],
-					# 'genre': genre,
-					'uri': t['uri'],
-					'preview_url': t['preview_url'],
-					'href': t['external_urls']['spotify'],
-					'release_year': int(a['album']['release_date'][0:4])
-				}
+			add_track(t, a)
 	if albums['next']:
 		# albums = None
 		albums = sp.next(albums)
 	else:
 		albums = None
+
+playlists = sp.current_user_playlists()
+while playlists:
+	for i, p in enumerate(playlists['items']):
+		print("%4d %s" % (i + 1 + playlists['offset'], p['name']))
+		if 'items' in p['tracks']:
+			for t in p['tracks']['items']:
+				add_track(t)
+	if playlists['next']:
+		# playlists = None
+		print('.', end='')
+		playlists = sp.next(playlists)
+	else:
+		playlists = None
+
+likes = sp.current_user_saved_tracks()
+while likes:
+	for i, item in enumerate(likes['items']):
+		add_track(item['track'])
+	if likes['next']:
+		# likes = None
+		print('.', end='')
+		likes = sp.next(likes)
+	else:
+		likes = None
 
 chunk_size = 20
 uris = list(tracks.keys())
