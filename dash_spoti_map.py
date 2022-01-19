@@ -7,6 +7,8 @@ from dash.dependencies import Input, Output, ClientsideFunction
 import webbrowser
 import plotly.express as px
 
+from sklearn.manifold import TSNE
+
 # ---
 
 app = dash.Dash(__name__)
@@ -22,81 +24,103 @@ scope = "user-library-read"
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))
 
 
+tracks = {}
 albums = sp.current_user_saved_albums()
-
-# print(albums)
-
-tracks = {t['uri']: {
-	'name': t['name'],
-	'uri': t['uri'],
-	'preview_url': t['preview_url'],
-	'href': t['external_urls']['spotify'],
-	} for a in albums['items'] for t in a['album']['tracks']['items']}
+while albums:
+	for i, a in enumerate(albums['items']):
+		print("%4d %s %s" % (i + 1 + albums['offset'], a['album']['uri'], a['album']['name']))
+		# genre = next(iter(a['album']['artists'][0]['genres']), '') if 'genres' in a['album']['artists'][0] else ''
+		# print(genre)
+		for t in a['album']['tracks']['items']:
+			if t['preview_url'] != None:
+				tracks[t['uri']] = {
+					'name': t['name'],
+					'album': a['album']['name'],
+					'artist': a['album']['artists'][0]['name'],
+					# 'genre': genre,
+					'uri': t['uri'],
+					'preview_url': t['preview_url'],
+					'href': t['external_urls']['spotify'],
+					'release_year': int(a['album']['release_date'][0:4])
+				}
+	if albums['next']:
+		# albums = None
+		albums = sp.next(albums)
+	else:
+		albums = None
 
 chunk_size = 20
 uris = list(tracks.keys())
+print(len(uris))
+
 chunked_uris = [uris[i:i + chunk_size] for i in range(0, len(uris), chunk_size)]
 
 chunked_features = [sp.audio_features(uris) for uris in chunked_uris]
 for features in chunked_features:
-  for f in features:
-    tracks[f['uri']].update({
-        'instrumentalness': f['instrumentalness'],
-        'danceability': f['danceability'],
-        'energy': f['energy'],
-        'tempo': f['tempo'],
-        'valence': f['valence']
-      })
+	for f in features:
+		tracks[f['uri']].update({
+			'instrumentalness': f['instrumentalness'],
+			'danceability': f['danceability'],
+			'energy': f['energy'],
+			'valence': f['valence'],
+			'speechiness': f['speechiness'],
+			'acousticness': f['acousticness'],
+			'tempo': f['tempo'],
+			'normalized_tempo': (f['tempo'] - 30) / 170
+		  })
 
 tracks_data = list(tracks.values())
 data = pd.DataFrame(tracks_data)
 
+#- t-SNE ----------------------------
+
+tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter_without_progress=50, n_jobs=-1, square_distances=True) #, n_iter=500)
+tsneable_data = data[['instrumentalness','danceability','energy', 'valence', 'normalized_tempo']] #, 'speechiness', 'acousticness']]
+tsne_results = tsne.fit_transform(tsneable_data)
+data['x'] = tsne_results[:,0]
+data['y'] = tsne_results[:,1]
+
 #------------------------------------
 
-fig = px.scatter(data, x="instrumentalness", y="valence", color="danceability", custom_data=("href", "name", "preview_url", "uri",))
-fig.update_traces(hovertemplate="""<a href="%{customdata[0]}">Name: %{customdata[1]}</a><br>URI: %{customdata[3]}<br>""")
+fig = px.scatter(data, x="x", y="y", color="danceability", custom_data=("href", "name", "preview_url", "uri", "album", "artist", "release_year"))
+fig.update_traces(hovertemplate="""%{customdata[5]}<br>%{customdata[1]}, %{customdata[4]}<br>(%{customdata[6]})""")
 fig.update_layout(clickmode='event+select')
 
-# --
-
-# <video controls="" autoplay="" name="media">
-# 	<source src="https://p.scdn.co/mp3-preview/5c5623fee2333d3400d3face46fb72811b66b241?cid=c701bf448e4b4d609e92a50f462c3d8c" type="audio/mpeg">
-# </video>
+#------------------------------------
 
 app.layout = html.Div(children=[
-    html.H1(children='SpotiMap'),
+	dcc.Graph(
+		id='my-graph',
+		figure=fig,
+		style={"Width": "100vh", "Height": 750}
+	),
 
-    html.P(id='no-output-1'),
-    html.P(id='no-output-2'),
+	html.Video(id='preview-player', controls=True, autoPlay=False, children=[
+		html.Source(id='preview-source', src='https://p.scdn.co/mp3-preview/5c5623fee2333d3400d3face46fb72811b66b241?cid=c701bf448e4b4d609e92a50f462c3d8c', type="audio/mpeg"),
+	]),
 
-    html.Video(id='preview-player', controls=True, autoPlay=False, children=[
-    	html.Source(id='preview-source', src='https://p.scdn.co/mp3-preview/5c5623fee2333d3400d3face46fb72811b66b241?cid=c701bf448e4b4d609e92a50f462c3d8c', type="audio/mpeg"),
-    ]),
-
-    dcc.Graph(
-        id='my-graph',
-        figure=fig
-    )
+	html.P(id='no-output-1'),
+	html.P(id='no-output-2'),
 ])
 
 @app.callback(
-    Output('no-output-1', 'children'),
-    [Input('my-graph', 'clickData')]
+	Output('no-output-1', 'children'),
+	[Input('my-graph', 'clickData')]
 )
 def open_url(clickData):
-    if clickData != None:
-    	print(clickData)
-    	url = clickData['points'][0]['customdata'][0]
-    	webbrowser.open_new(url)
+	if clickData != None:
+		print(clickData)
+		url = clickData['points'][0]['customdata'][0]
+		webbrowser.open_new(url)
 
 app.clientside_callback(
-    ClientsideFunction(
-        namespace='clientside',
-        function_name='playPreview'
-    ),
-    Output('no-output-2', 'children'),
-    Input('my-graph', 'hoverData'),
+	ClientsideFunction(
+		namespace='clientside',
+		function_name='playPreview'
+	),
+	Output('no-output-2', 'children'),
+	Input('my-graph', 'hoverData'),
 )
 
 if __name__ == '__main__':
-    app.run_server(debug=True, use_reloader=True)
+	app.run_server(debug=True, use_reloader=False)
