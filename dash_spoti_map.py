@@ -113,10 +113,22 @@ except FileNotFoundError:
 		data = pd.DataFrame(tracks_data)
 		data.to_pickle('data-spotify.pkl')
 
+	#- artist name as a number between 0 and 1 ----
+
+	art = data['artist'].sort_values().unique()
+	# print(art)
+	n_artists = len(art)
+	# def calc(row):
+	# 	return np.where(art == row['artist'])[0][0]/n_artists
+	# data['artist-0-1'] = data['artist']
+	data['artist-0-1'] = [np.where(art == a)[0][0]/n_artists for a in data['artist']]
+	print(data) #['artist-0-1'][100:])
+	# quit()
+
 	#- t-SNE ----------------------------
 
 	tsne = TSNE(n_components=2, verbose=1, perplexity=50, n_iter_without_progress=50, n_jobs=-1, square_distances=True)
-	tsneable_data = data[['instrumentalness','danceability','energy', 'valence', 'normalized_tempo']] #, 'speechiness', 'acousticness']]
+	tsneable_data = data[['instrumentalness','danceability','energy', 'valence', 'normalized_tempo', 'artist-0-1']] #, 'speechiness', 'acousticness']]
 	tsne_results = tsne.fit_transform(tsneable_data)
 	data['x'] = tsne_results[:,0]
 	data['y'] = tsne_results[:,1]
