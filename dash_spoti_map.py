@@ -8,6 +8,7 @@ from dash.exceptions import PreventUpdate
 import webbrowser
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from sklearn.manifold import TSNE
 
@@ -114,54 +115,47 @@ except FileNotFoundError:
 
 	#- t-SNE ----------------------------
 
-	tsne = TSNE(n_components=3, verbose=1, perplexity=40, n_iter_without_progress=50, n_jobs=-1, square_distances=True) #, n_iter=500)
+	tsne = TSNE(n_components=2, verbose=1, perplexity=50, n_iter_without_progress=50, n_jobs=-1, square_distances=True)
 	tsneable_data = data[['instrumentalness','danceability','energy', 'valence', 'normalized_tempo']] #, 'speechiness', 'acousticness']]
 	tsne_results = tsne.fit_transform(tsneable_data)
 	data['x'] = tsne_results[:,0]
 	data['y'] = tsne_results[:,1]
-	data['z'] = tsne_results[:,2]
+	# data['z'] = tsne_results[:,2]
 
 	data.to_pickle('data-tsne.pkl')
 
 #------------------------------------
 
-# fig = go.Figure()
+fig = make_subplots()
 
-# fig = px.scatter(data, x="x", y="y", color="danceability",
-# 	custom_data=("href", "name", "preview_url", "uri", "album", "artist", "release_year"),
-# 	text='artist',
-# 	height=750)
+fig.add_trace(go.Scatter(
+	x=data["x"], y=data["y"],
+	mode='markers',
+	marker_color=data["danceability"],
+	customdata=data[["href", "name", "preview_url", "uri", "album", "artist", "release_year"]],
+	hovertemplate='%{customdata[5]}<br>%{customdata[1]}, %{customdata[4]}<br>(%{customdata[6]})',
+	showlegend=False,
+))
 
-fig = px.scatter_3d(
-	data, x="x", y="y", z="z", color="danceability", symbol="track_liked",
-	custom_data=("href", "name", "preview_url", "uri", "album", "artist", "release_year"),
-	# text='artist',
-	# size='energy',
-	# size_max=20,
-    height=750)
+top = data[['artist', 'x', 'y']] \
+	.groupby(['artist'], as_index=False)[['x','y']] \
+	.agg(['count','median','std']) \
+	.sort_values([('x','count'),('x','std'),('y','std')], ascending=[False,True,True])[:120]
 
-# fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+top['text_size'] = 4 * np.log(top[("x", "count")])
 
-# print(fig)
-# xrange = (min(data['x']-1), max(data['x']+1))
+fig.add_trace(go.Scatter(
+	x=top[("x", "median")],
+	y=top[("y", "median")],
+	text=top.index,
+	textfont_size=top["text_size"],
+	mode='text',
+	showlegend=False,
+))
 
-# data = data.sort_values(['x','y'])
-# print(np.array_split(data['x'], 8)[0])
-# print(np.array_split(data['y'], 8)[0])
+fig.update_layout(height=750, uniformtext_minsize=12, uniformtext_mode='hide', clickmode='event')
 
-# print(np.array_split(data['x'], 8)[1])
-
-# data[['x','y']].rolling(100).max()
-
-# quit()
-
-# fig.add_annotation( # add a text callout with arrow
-#     text="below target!", x="Fri", y=400, arrowhead=1, showarrow=True
-# )
-
-#,text=[data['artist'], data['album']])
-fig.update_traces(hovertemplate="""%{customdata[5]}<br>%{customdata[1]}, %{customdata[4]}<br>(%{customdata[6]})""")
-fig.update_layout(clickmode='event')
+fig.show()
 
 #------------------------------------
 
