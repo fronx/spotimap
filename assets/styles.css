@@ -1,0 +1,6 @@
+li span {
+	display: inline-table;
+	margin: 0 4px;
+	padding: 0 3px;
+	border-left: 1px solid #ccc;
+}
