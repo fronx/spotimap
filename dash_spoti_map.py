@@ -178,6 +178,7 @@ app.layout = html.Div(children=[
 
 	html.Ul(id='click-list', children=[]),
 
+	html.P(id='no-output-1'),
 	html.P(id='no-output-2'),
 ])
 
@@ -205,8 +206,17 @@ app.clientside_callback(
 		namespace='clientside',
 		function_name='playPreview'
 	),
-	Output('no-output-2', 'children'),
+	Output('no-output-1', 'children'),
 	Input('my-graph', 'hoverData'),
+)
+
+app.clientside_callback(
+	ClientsideFunction(
+		namespace='clientside',
+		function_name='pausePreview'
+	),
+	Output('no-output-2', 'children'),
+	Input('my-graph', 'clickData'),
 )
 
 if __name__ == '__main__':
