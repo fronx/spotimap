@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-
+import hashlib
 
 try:
 	data = pd.read_pickle('data-tsne.pkl')
@@ -30,7 +30,7 @@ except FileNotFoundError:
 	try:
 		data = pd.read_pickle('data-spotify.pkl')
 	except FileNotFoundError:
-		scope = "user-library-read"
+		scope = "user-library-read,playlist-read-private,user-read-private"
 		sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))
 
 		tracks = {}
@@ -115,15 +115,8 @@ except FileNotFoundError:
 
 	#- artist name as a number between 0 and 1 ----
 
-	art = data['artist'].sort_values().unique()
-	# print(art)
-	n_artists = len(art)
-	# def calc(row):
-	# 	return np.where(art == row['artist'])[0][0]/n_artists
-	# data['artist-0-1'] = data['artist']
-	data['artist-0-1'] = [np.where(art == a)[0][0]/n_artists for a in data['artist']]
-	print(data) #['artist-0-1'][100:])
-	# quit()
+	data['artist-0-1'] = [int(hashlib.sha1(a.encode('utf-8')).hexdigest()[:6], 16)/16777216 for a in data['artist']]
+	print(data[['artist', 'artist-0-1']])
 
 	#- t-SNE ----------------------------
 
@@ -165,7 +158,7 @@ fig.add_trace(go.Scatter(
 	showlegend=False,
 ))
 
-fig.update_layout(height=750, uniformtext_minsize=12, uniformtext_mode='hide', clickmode='event')
+fig.update_layout(height=1250, uniformtext_minsize=12, uniformtext_mode='hide', clickmode='event')
 
 fig.show()
 
@@ -197,7 +190,9 @@ def open_url(clickData, state):
 	if clickData == None:
 		raise PreventUpdate
 	print(clickData)
-	clicked_tracks.append(clickData['points'][0]['customdata'])
+	t = clickData['points'][0]['customdata']
+	clicked_tracks.append(t)
+	webbrowser.open_new_tab(t[0])
 	return [html.Li(children=[
 			html.A(href=t[0], children=t[1]), # track link
 			html.Span(children=t[4]), # album
