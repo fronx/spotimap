@@ -169,11 +169,12 @@ clicked_tracks = []
 app.layout = html.Div(children=[
 	dcc.Graph(
 		id='my-graph',
-		figure=fig
+		figure=fig,
+		clear_on_unhover=True,
 	),
 
 	html.Video(id='preview-player', controls=True, autoPlay=False, height=30, width=400, children=[
-		html.Source(id='preview-source', src='https://p.scdn.co/mp3-preview/5c5623fee2333d3400d3face46fb72811b66b241?cid=c701bf448e4b4d609e92a50f462c3d8c', type="audio/mpeg"),
+		html.Source(id='preview-source', src='', type="audio/mpeg"),
 	]),
 
 	html.Ul(id='click-list', children=[]),
