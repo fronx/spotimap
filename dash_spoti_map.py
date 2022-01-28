@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from sklearn.manifold import TSNE
+from song.song import SONG
 
 # ---
 
@@ -23,6 +24,10 @@ import pandas as pd
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import hashlib
+
+# ---
+
+columns = ['instrumentalness','danceability','energy', 'valence', 'speechiness', 'normalized_tempo', 'artist-0-1']
 
 try:
 	data = pd.read_pickle('data-tsne.pkl')
@@ -121,7 +126,7 @@ except FileNotFoundError:
 	#- t-SNE ----------------------------
 
 	tsne = TSNE(n_components=2, verbose=1, perplexity=50, n_iter_without_progress=50, n_jobs=-1, square_distances=True)
-	tsneable_data = data[['instrumentalness','danceability','energy', 'valence', 'normalized_tempo', 'artist-0-1']] #, 'speechiness', 'acousticness']]
+	tsneable_data = data[columns]
 	tsne_results = tsne.fit_transform(tsneable_data)
 	data['x'] = tsne_results[:,0]
 	data['y'] = tsne_results[:,1]
@@ -131,14 +136,49 @@ except FileNotFoundError:
 
 #------------------------------------
 
+try:
+	data = pd.read_pickle('data-song.pkl')
+except FileNotFoundError:
+	d = data[columns].to_numpy()
+	model = SONG(min_dist=0.5, spread=0.9)
+	model.fit(d)
+	Y = model.transform(d)
+	data['x'] = Y[:,0]
+	data['y'] = Y[:,1]
+	data.to_pickle('data-song.pkl')
+
+# data['x'] = [round(4 * x, 1)/4 for x in data['x']]
+# data['y'] = [round(1 * y, 1)/1 for y in data['y']]
+
+# quit()
+
+#------------------------------------
+
 fig = make_subplots()
 
 fig.add_trace(go.Scatter(
 	x=data["x"], y=data["y"],
 	mode='markers',
-	marker_color=data["danceability"],
-	customdata=data[["href", "name", "preview_url", "uri", "album", "artist", "release_year"]],
-	hovertemplate='%{customdata[5]}<br>%{customdata[1]}, %{customdata[4]}<br>(%{customdata[6]})',
+	marker=dict(
+		size=8,
+		color=data["danceability"],
+		opacity=0.7,
+		),
+	showlegend=False,
+))
+
+fig.add_trace(go.Scatter(
+	x=data["x"], y=data["y"],
+	mode='markers',
+	marker=dict(
+		size=8,
+		line_width=0.5,
+		line_color='rgba(255, 255, 255, 1.0)',
+		color='rgba(255, 255, 255, 0.0)',
+		),
+	customdata=data[["href", "name", "preview_url", "uri", "album", "artist", "release_year",
+		"instrumentalness", "energy", "valence", "tempo"]],
+	hovertemplate='<b>%{customdata[5]}</b><br>%{customdata[1]}, %{customdata[4]}<br>(%{customdata[6]})<br><br>instrumentalness: %{customdata[7]}<br>energy: %{customdata[8]}<br>valence: %{customdata[9]}<br>tempo: %{customdata[10]}<extra></extra>',
 	showlegend=False,
 ))
 
@@ -158,7 +198,7 @@ fig.add_trace(go.Scatter(
 	showlegend=False,
 ))
 
-fig.update_layout(height=1250, uniformtext_minsize=12, uniformtext_mode='hide', clickmode='event')
+fig.update_layout(width=2300, height=1800, uniformtext_minsize=12, uniformtext_mode='hide', clickmode='event')
 
 fig.show()
 
